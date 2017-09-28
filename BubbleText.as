@@ -1,11 +1,9 @@
 package src.utils 
 {
 	import com.greensock.TweenLite;
-	import fl.controls.TextArea;
-	import flash.display.DisplayObject;
 	import flash.display.DisplayObjectContainer;
+	import flash.display.InteractiveObject;
 	import flash.display.Sprite;
-	import flash.display.Stage;
 	import flash.events.MouseEvent;
 	import flash.text.TextField;
 	import flash.text.TextFormat;
@@ -13,22 +11,25 @@ package src.utils
 	import flash.utils.clearTimeout;
 	import flash.utils.setTimeout;
 	
-	public class BubbleText extends Sprite
+	public class BubbleText
 	{
 		private static const BUBBLE_COLOR:uint = 0xffffcc;
+		private static const TIMER_TIME:uint = 700;
 		
 		private var _bubbleTimeout:uint;
 		
 		private static var _instance:BubbleText;
 		private static var _stage:DisplayObjectContainer;
 		
-		
 		private var _bubbleObjects:Dictionary = new Dictionary();
 		
-		private var _textDescription:TextField;
-		private var _textSprite:Sprite
+		private var _textDescription:TextField = new TextField();;
+		private var _textSprite:Sprite = new Sprite();
 		
-		public function BubbleText(itIsSingleton:PrivateSingleton);
+		public function BubbleText(itIsSingleton:PrivateSingleton) 
+		{
+			_textSprite.addChild(_textDescription);
+		}
 		
 		public static function gi():BubbleText 
 		{
@@ -43,38 +44,52 @@ package src.utils
 			_stage = s;
 		}
 		
-		
 		public function registerObject(object:Sprite, description:String):void 
 		{
-			_bubbleObjects[object] = description;
+			_bubbleObjects[object] = {target:object, description:description};
 			
-			if (!object.hasEventListener(MouseEvent.MOUSE_OVER)) 
+			if (!_stage.hasEventListener(MouseEvent.MOUSE_OVER)) 
 			{
-				object.addEventListener(MouseEvent.MOUSE_OVER, mouseOverOutHandler);
-				object.addEventListener(MouseEvent.MOUSE_OUT, mouseOverOutHandler);
-				object.mouseChildren = false;
+				_stage.addEventListener(MouseEvent.MOUSE_OVER, mouseOverOutHandler, true);
+				_stage.addEventListener(MouseEvent.MOUSE_OUT, mouseOverOutHandler, true);
 			}
 		}
 		
 		private function mouseOverOutHandler(event:MouseEvent):void 
 		{
-			var target:Sprite = event.currentTarget as Sprite;
-			if (event.type == MouseEvent.MOUSE_OVER) 
+			var target:Sprite;
+			
+			var check_mc:InteractiveObject = event.target as InteractiveObject;
+			while (check_mc != event.currentTarget as InteractiveObject) 
 			{
-				target.addEventListener(MouseEvent.MOUSE_MOVE, mouseOverOutHandler);
-				_bubbleTimeout = setTimeout(displayBubble, 700, target);
+				var bubbleObject:Object = _bubbleObjects[check_mc as Sprite];
+				if (bubbleObject) 
+				{
+					target = bubbleObject.target;
+					break;
+				}
+				
+				check_mc = check_mc.parent;
 			}
 			
-			if(event.type == MouseEvent.MOUSE_MOVE)
-			{
-				removeBubble();
-				_bubbleTimeout = setTimeout(displayBubble, 500, target);
-			}
+			if (!target) return;
 			
-			if (event.type == MouseEvent.MOUSE_OUT) 
+			switch(event.type) 
 			{
-				removeBubble();
-				target.removeEventListener(MouseEvent.MOUSE_MOVE, mouseOverOutHandler);
+				case MouseEvent.MOUSE_OVER:
+					target.addEventListener(MouseEvent.MOUSE_MOVE, mouseOverOutHandler);
+					_bubbleTimeout = setTimeout(displayBubble, TIMER_TIME, target);
+					break;
+					
+				case MouseEvent.MOUSE_MOVE:
+					removeBubble();
+					_bubbleTimeout = setTimeout(displayBubble, TIMER_TIME, target);
+					break;
+				
+				case MouseEvent.MOUSE_OUT:
+					removeBubble();
+					target.removeEventListener(MouseEvent.MOUSE_MOVE, mouseOverOutHandler);
+					break;
 			}
 		}
 		
@@ -82,24 +97,21 @@ package src.utils
 		{
 			clearTimeout(_bubbleTimeout);
 				
-			if (_textSprite) 
-				{
-					_stage.removeChild(_textSprite);
-					_textSprite = null;
-				}
+			_textSprite.graphics.clear();
+			_textDescription.text = '';
+			
+			if(_stage.getChildByName(_textSprite.name))
+				_stage.removeChild(_textSprite);
 		}
 		
 		
 		private function displayBubble():void 
 		{	
-			_textSprite = new Sprite();
-			
 			var target:Sprite = arguments[0];
-				
-			_textDescription = new TextField();
+
 			_textDescription.defaultTextFormat = new TextFormat('Verdana');
 			_textDescription.autoSize = 'center';
-			_textDescription.text = _bubbleObjects[target];
+			_textDescription.text = _bubbleObjects[target].description;
 			_textDescription.x = 0;
 			_textDescription.y = 0;
 				
@@ -107,8 +119,7 @@ package src.utils
 			_textSprite.graphics.lineStyle(0, 0, 1, true);
 			_textSprite.graphics.beginFill(BUBBLE_COLOR);
 			_textSprite.graphics.drawRoundRect(_textDescription.x-gap, _textDescription.y-gap, _textDescription.width+gap*2, _textDescription.height+gap*2, 10);
-				
-			_textSprite.addChild(_textDescription);
+
 			_textSprite.x = _stage.mouseX;
 			_textSprite.y = _stage.mouseY + 40;
 			
